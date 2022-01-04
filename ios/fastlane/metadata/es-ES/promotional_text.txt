@@ -1,8 +1,10 @@
-* Código abierto
-* Todo los datos son cifrados
-* Negación plausible
-* Comisiones flexibles
-* Replace by Fee (RBF)
+Features
+
+* Open Source
+* Full encryption
+* Plausible deniability
+* Flexible fees
+* Replace-By-Fee (RBF)
 * SegWit
-* Carteras de observación
+* Watch-only (Sentinel) wallets
 * Lightning network

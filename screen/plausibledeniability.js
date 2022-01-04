@@ -1,80 +1,102 @@
-import React, { useContext, useState } from 'react';
+/* global alert */
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import { ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
-import navigationStyle from '../components/navigationStyle';
-import { BlueLoading, BlueButton, SafeBlueArea, BlueCard, BlueText, BlueSpacing20 } from '../BlueComponents';
-import loc from '../loc';
-import { BlueStorageContext } from '../blue_modules/storage-context';
-import alert from '../components/Alert';
-const prompt = require('../blue_modules/prompt');
+import {
+  BlueLoading,
+  BlueButton,
+  SafeBlueArea,
+  BlueCard,
+  BlueText,
+  BlueNavigationStyle,
+  BlueSpacing20,
+} from '../BlueComponents';
 
-const PlausibleDeniability = () => {
-  const { cachedPassword, isPasswordInUse, createFakeStorage, resetWallets } = useContext(BlueStorageContext);
-  const [isLoading, setIsLoading] = useState(false);
-  const { popToTop } = useNavigation();
+/** @type {AppStorage} */
+const BlueApp = require('../BlueApp');
+const EV = require('../events');
+const loc = require('../loc');
+const prompt = require('../prompt');
 
-  const handleOnCreateFakeStorageButtonPressed = async () => {
-    setIsLoading(true);
-    try {
-      const p1 = await prompt(loc.plausibledeniability.create_password, loc.plausibledeniability.create_password_explanation);
-      const isProvidedPasswordInUse = p1 === cachedPassword || (await isPasswordInUse(p1));
-      if (isProvidedPasswordInUse) {
-        setIsLoading(false);
-        ReactNativeHapticFeedback.trigger('notificationError', { ignoreAndroidSystemSettings: false });
-        return alert(loc.plausibledeniability.password_should_not_match);
-      }
-      if (!p1) {
-        setIsLoading(false);
-        return;
-      }
-      const p2 = await prompt(loc.plausibledeniability.retype_password);
-      if (p1 !== p2) {
-        setIsLoading(false);
-        ReactNativeHapticFeedback.trigger('notificationError', { ignoreAndroidSystemSettings: false });
-        return alert(loc.plausibledeniability.passwords_do_not_match);
-      }
-
-      await createFakeStorage(p1);
-      await resetWallets();
-      ReactNativeHapticFeedback.trigger('notificationSuccess', { ignoreAndroidSystemSettings: false });
-      alert(loc.plausibledeniability.success);
-      popToTop();
-    } catch {
-      setIsLoading(false);
-    }
+export default class PlausibleDeniability extends Component {
+  static navigationOptions = {
+    ...BlueNavigationStyle(),
+    title: loc.plausibledeniability.title,
   };
 
-  return isLoading ? (
-    <SafeBlueArea>
-      <BlueLoading />
-    </SafeBlueArea>
-  ) : (
-    <SafeBlueArea>
-      <BlueCard>
-        <ScrollView maxHeight={450}>
-          <BlueText>{loc.plausibledeniability.help}</BlueText>
+  constructor(props) {
+    super(props);
+    this.state = {
+      isLoading: true,
+    };
+  }
 
-          <BlueText />
+  async componentDidMount() {
+    this.setState({
+      isLoading: false,
+    });
+  }
 
-          <BlueText>{loc.plausibledeniability.help2}</BlueText>
+  render() {
+    if (this.state.isLoading) {
+      return <BlueLoading />;
+    }
 
-          <BlueSpacing20 />
+    return (
+      <SafeBlueArea forceInset={{ horizontal: 'always' }} style={{ flex: 1 }}>
+        <BlueCard>
+          <ScrollView maxHeight={450}>
+            <BlueText>{loc.plausibledeniability.help}</BlueText>
 
-          <BlueButton
-            testID="CreateFakeStorageButton"
-            title={loc.plausibledeniability.create_fake_storage}
-            onPress={handleOnCreateFakeStorageButtonPressed}
-          />
-        </ScrollView>
-      </BlueCard>
-    </SafeBlueArea>
-  );
+            <BlueText />
+
+            <BlueText>{loc.plausibledeniability.help2}</BlueText>
+
+            <BlueSpacing20 />
+
+            <BlueButton
+              icon={{
+                name: 'shield',
+                type: 'font-awesome',
+                color: BlueApp.settings.buttonTextColor,
+              }}
+              title={loc.plausibledeniability.create_fake_storage}
+              onPress={async () => {
+                const p1 = await prompt(
+                  loc.plausibledeniability.create_password,
+                  loc.plausibledeniability.create_password_explanation,
+                );
+                if (p1 === BlueApp.cachedPassword) {
+                  return alert(loc.plausibledeniability.password_should_not_match);
+                }
+
+                if (!p1) {
+                  return;
+                }
+
+                const p2 = await prompt(loc.plausibledeniability.retype_password);
+                if (p1 !== p2) {
+                  return alert(loc.plausibledeniability.passwords_do_not_match);
+                }
+
+                await BlueApp.createFakeStorage(p1);
+                EV(EV.enum.WALLETS_COUNT_CHANGED);
+                EV(EV.enum.TRANSACTIONS_COUNT_CHANGED);
+                alert(loc.plausibledeniability.success);
+                this.props.navigation.navigate('Wallets');
+              }}
+            />
+          </ScrollView>
+        </BlueCard>
+      </SafeBlueArea>
+    );
+  }
+}
+
+PlausibleDeniability.propTypes = {
+  navigation: PropTypes.shape({
+    navigate: PropTypes.func,
+    goBack: PropTypes.func,
+  }),
 };
-
-export default PlausibleDeniability;
-
-PlausibleDeniability.navigationOptions = navigationStyle({
-  title: loc.plausibledeniability.title,
-});

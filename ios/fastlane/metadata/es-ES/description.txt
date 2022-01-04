@@ -1,53 +1,39 @@
-Una cartera de Bitcoin que te permite guardar, mandar, recibir y comprar bitcoin centrada en la seguridad y la simplicidad.
+Store, send and receive bitcoin with the wallet focus on security and simplicity.
 
-En BlueWallet tú controlas las llaves privadas. Una cartera de Bitcoin hecha por usuarios de Bitcoin para la comunidad.
+On Ksoc you own you private keys. A Bitcoin wallet focused on us the users.
 
-Realiza trámites al instante con cualquiera, sin importar dónde esté. Transforma el sistema financiero desde tu bolsillo.
+You can instantly transact with anyone in the world and transform the financial system right from your pocket.
 
-Crea todas las carteras de Bitcoin que quieras o importa una que ya tengas. Es rápido y sencillo.
+Create for free unlimited number of bitcoin wallets or access your existing one on your iOS device. It's simple and fast.
 
 _____
 
-Ofrece todo esto:
+Here's what you get:
 
+1 - Security by design
 
-1 - Seguridad mediante diseño
+Open Source
+MIT licensed, you can build it and run it on your own! Made with ReactNative
 
-Código abierto
-Licencia MIT, compila el código tú mismo! Hecha con ReactNative
+Plausible deniability
+Password which decrypts fake wallets if you are forced to disclose your access
 
-Negación plausible
-Desbloquea carteras de bitcoin falsas si alguien te obliga a darles tu contraseña
+Full encryption
+On top of iOS multi-layer encryption, we encrypt everyting with added passwords
 
-Encriptación total
-Además de la encriptación multicapa de iOS, encriptamos todo con contraseñas adicionales
+SegWit & HD wallets
+SegWit supported and HD wallets enable
 
-Nodo completo
-Conecta a tu nodo de Bitcoin a través de Electrum
+2 - Focused on your experience
 
-Almacenamiento frío
-Conecta tu cartera de hardware y guarda tus fondos en cold storage
+Be in control
+Private keys never leave your device.  You control your private keys
 
-2 - Centrada en tu experiencia
+Flexible fees
+Starting from 1 Satoshi.  Defined by you, the user
 
-Control total
-Las llaves privadas nunca salen de tu dispositivo
-Tú controlas las llaves privadas
+Replace-By-Fee
+(RBF) Speed-up your transactions by increasing the fee (BIP125)
 
-Comisiones flexibles
-Desde 1 Satoshi. Definido por ti, el usuario
-
-Replace by Fee
-(RBF) Acelera tus transacciones incrementando la comisión (BIP125)
-
-Carteras de observación
-Las carteras de observación te permiten vigilar tus bitcoin en cold storage sin tener que tocar el hardware.
-
-Lightning Network
-Crea carteras Lighting con la mejor experiencia de usuario. Ofrecen comisiones muy bajas y transacciones super rápidas.
-
-Compra bitcoin
-Únete a la revolución de la economía abierta con la opción de comprar bitcoin directamente desde tu cartera.
-
-Compra-venta local
-Una plataforma P2P de compra-venta de bitcoin, que te permite comprar y vender directamente con otros usuarios sin pasar por terceros.
+Sentinel wallets new
+Watch-only wallets allow you to keep an eye on your cold storage without touching the hardware.

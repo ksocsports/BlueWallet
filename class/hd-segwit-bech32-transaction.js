@@ -1,9 +1,10 @@
-import { HDSegwitBech32Wallet } from './wallets/hd-segwit-bech32-wallet';
-import { SegwitBech32Wallet } from './wallets/segwit-bech32-wallet';
-const bitcoin = require('bitcoinjs-lib');
-const BlueElectrum = require('../blue_modules/BlueElectrum');
-const reverse = require('buffer-reverse');
+import { HDSegwitBech32Wallet, SegwitBech32Wallet } from './';
+
 const BigNumber = require('bignumber.js');
+const bitcoin = require('bitcoinjs-lib');
+const reverse = require('buffer-reverse');
+
+const BlueElectrum = require('../BlueElectrum');
 
 /**
  * Represents transaction of a BIP84 wallet.
@@ -163,7 +164,11 @@ export class HDSegwitBech32Transaction {
     for (const inp of this._txDecoded.ins) {
       let reversedHash = Buffer.from(reverse(inp.hash));
       reversedHash = reversedHash.toString('hex');
-      if (prevTransactions[reversedHash] && prevTransactions[reversedHash].vout && prevTransactions[reversedHash].vout[inp.index]) {
+      if (
+        prevTransactions[reversedHash] &&
+        prevTransactions[reversedHash].vout &&
+        prevTransactions[reversedHash].vout[inp.index]
+      ) {
         let value = prevTransactions[reversedHash].vout[inp.index].value;
         value = new BigNumber(value).multipliedBy(100000000).toNumber();
         wentIn += value;
@@ -180,7 +185,7 @@ export class HDSegwitBech32Transaction {
     }
 
     const fee = wentIn - wasSpent;
-    let feeRate = Math.floor(fee / this._txDecoded.virtualSize());
+    let feeRate = Math.floor(fee / (this._txhex.length / 2));
     if (feeRate === 0) feeRate = 1;
 
     // lets take a look at change
@@ -216,32 +221,6 @@ export class HDSegwitBech32Transaction {
   }
 
   /**
-   * We get _all_ our UTXOs (even spent kek),
-   * and see if each input in this transaction's UTXO is in there. If its not there - its an unknown
-   * input, we dont own it (possibly a payjoin transaction), and we cant do RBF
-   *
-   * @returns {Promise<boolean>}
-   */
-  async thereAreUnknownInputsInTx() {
-    if (!this._wallet) throw new Error('Wallet required for this method');
-    if (!this._txDecoded) await this._fetchTxhexAndDecode();
-
-    const spentUtxos = this._wallet.getDerivedUtxoFromOurTransaction(true);
-    for (const inp of this._txDecoded.ins) {
-      const txidInUtxo = reverse(inp.hash).toString('hex');
-
-      let found = false;
-      for (const spentU of spentUtxos) {
-        if (spentU.txid === txidInUtxo && spentU.vout === inp.index) found = true;
-      }
-
-      if (!found) {
-        return true;
-      }
-    }
-  }
-
-  /**
    * Checks if all outputs belong to us, that
    * means we already canceled this tx and we can only bump fees
    *
@@ -251,23 +230,12 @@ export class HDSegwitBech32Transaction {
     if (!this._wallet) throw new Error('Wallet required for this method');
     if (!this._txDecoded) await this._fetchTxhexAndDecode();
 
-    if (await this.thereAreUnknownInputsInTx()) return false;
-
     // if theres at least one output we dont own - we can cancel this transaction!
     for (const outp of this._txDecoded.outs) {
       if (!this._wallet.weOwnAddress(SegwitBech32Wallet.scriptPubKeyToAddress(outp.script))) return true;
     }
 
     return false;
-  }
-
-  async canBumpTx() {
-    if (!this._wallet) throw new Error('Wallet required for this method');
-    if (!this._txDecoded) await this._fetchTxhexAndDecode();
-
-    if (await this.thereAreUnknownInputsInTx()) return false;
-
-    return true;
   }
 
   /**
@@ -285,7 +253,7 @@ export class HDSegwitBech32Transaction {
     const { feeRate, utxos } = await this.getInfo();
 
     if (newFeerate <= feeRate) throw new Error('New feerate should be bigger than the old one');
-    const myAddress = await this._wallet.getChangeAddressAsync();
+    const myAddress = await this._wallet.getAddressForTransaction();
 
     return this._wallet.createTransaction(
       utxos,
@@ -310,7 +278,7 @@ export class HDSegwitBech32Transaction {
     const { feeRate, targets, changeAmount, utxos } = await this.getInfo();
 
     if (newFeerate <= feeRate) throw new Error('New feerate should be bigger than the old one');
-    const myAddress = await this._wallet.getChangeAddressAsync();
+    const myAddress = await this._wallet.getAddressForTransaction();
 
     if (changeAmount === 0) delete targets[0].value;
     // looks like this was sendMAX transaction (because there was no change), so we cant reuse amount in this
@@ -319,7 +287,7 @@ export class HDSegwitBech32Transaction {
     if (targets.length === 0) {
       // looks like this was cancelled tx with single change output, so it wasnt included in `this.getInfo()` targets
       // so we add output paying ourselves:
-      targets.push({ address: this._wallet._getInternalAddressByIndex(this._wallet.next_free_change_address_index) });
+      targets.push({ address: this._wallet.getAddressForTransaction() });
       // not checking emptiness on purpose: it could unpredictably generate too far address because of unconfirmed tx.
     }
 
@@ -340,7 +308,7 @@ export class HDSegwitBech32Transaction {
     const { feeRate, fee: oldFee, unconfirmedUtxos } = await this.getInfo();
 
     if (newFeerate <= feeRate) throw new Error('New feerate should be bigger than the old one');
-    const myAddress = await this._wallet.getChangeAddressAsync();
+    const myAddress = await this._wallet.getAddressForTransaction();
 
     // calculating feerate for CPFP tx so that average between current and CPFP tx will equal newFeerate.
     // this works well if both txs are +/- equal size in bytes
@@ -348,7 +316,6 @@ export class HDSegwitBech32Transaction {
 
     let add = 0;
     while (add <= 128) {
-      // eslint-disable-next-line no-var
       var { tx, inputs, outputs, fee } = this._wallet.createTransaction(
         unconfirmedUtxos,
         [{ address: myAddress }],
@@ -356,7 +323,7 @@ export class HDSegwitBech32Transaction {
         myAddress,
         HDSegwitBech32Wallet.defaultRBFSequence,
       );
-      const combinedFeeRate = (oldFee + fee) / (this._txDecoded.virtualSize() + tx.virtualSize()); // avg
+      const combinedFeeRate = (oldFee + fee) / (this._txhex.length / 2 + tx.toHex().length / 2); // avg
       if (Math.round(combinedFeeRate) < newFeerate) {
         add *= 2;
         if (!add) add = 2;

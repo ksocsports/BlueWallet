@@ -1,23 +1,20 @@
-import React from 'react';
+/* global alert */
 import PropTypes from 'prop-types';
-import { ActivityIndicator, View, ScrollView, StyleSheet } from 'react-native';
-import navigationStyle from '../../components/navigationStyle';
-import { BlueSpacing20, SafeBlueArea, BlueText } from '../../BlueComponents';
+import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
+
+import { BlueSpacing20, SafeBlueArea, BlueText, BlueNavigationStyle } from '../../BlueComponents';
 import { HDSegwitBech32Transaction, HDSegwitBech32Wallet } from '../../class';
 import CPFP from './CPFP';
-import loc from '../../loc';
-import { BlueStorageContext } from '../../blue_modules/storage-context';
-import alert from '../../components/Alert';
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    paddingTop: 16,
-  },
-});
+/** @type {AppStorage} */
+const BlueApp = require('../../BlueApp');
 
 export default class RBFBumpFee extends CPFP {
-  static contextType = BlueStorageContext;
+  static navigationOptions = () => ({
+    ...BlueNavigationStyle(null, false),
+    title: 'Bump fee (RBF)',
+  });
 
   async componentDidMount() {
     console.log('transactions/RBFBumpFee - componentDidMount');
@@ -35,7 +32,11 @@ export default class RBFBumpFee extends CPFP {
     }
 
     const tx = new HDSegwitBech32Transaction(null, this.state.txid, this.state.wallet);
-    if ((await tx.isOurTransaction()) && (await tx.getRemoteConfirmationsNum()) === 0 && (await tx.isSequenceReplaceable())) {
+    if (
+      (await tx.isOurTransaction()) &&
+      (await tx.getRemoteConfirmationsNum()) === 0 &&
+      (await tx.isSequenceReplaceable())
+    ) {
       const info = await tx.getInfo();
       return this.setState({ nonReplaceable: false, feeRate: info.feeRate + 1, isLoading: false, tx });
       // 1 sat makes a lot of difference, since sometimes because of rounding created tx's fee might be insufficient
@@ -56,27 +57,29 @@ export default class RBFBumpFee extends CPFP {
         this.setState({ isLoading: false });
       } catch (_) {
         this.setState({ isLoading: false });
-        alert(loc.errors.error + ': ' + _.message);
+        alert('Failed: ' + _.message);
       }
     }
   }
 
   onSuccessBroadcast() {
     // porting memo from old tx:
-    if (this.context.txMetadata[this.state.txid]) {
-      this.context.txMetadata[this.state.newTxid] = this.context.txMetadata[this.state.txid];
+    if (BlueApp.tx_metadata[this.state.txid]) {
+      BlueApp.tx_metadata[this.state.newTxid] = BlueApp.tx_metadata[this.state.txid];
     }
-    this.context.sleep(4000).then(() => this.context.fetchAndSaveWalletTransactions(this.state.wallet.getID()));
-    this.props.navigation.navigate('Success', { onDonePressed: () => this.props.navigation.popToTop(), amount: undefined });
   }
 
   render() {
     if (this.state.isLoading) {
       return (
-        <View style={styles.root}>
+        <View style={{ flex: 1, paddingTop: 20 }}>
           <ActivityIndicator />
         </View>
       );
+    }
+
+    if (this.state.stage === 3) {
+      return this.renderStage3();
     }
 
     if (this.state.stage === 2) {
@@ -85,22 +88,20 @@ export default class RBFBumpFee extends CPFP {
 
     if (this.state.nonReplaceable) {
       return (
-        <SafeBlueArea style={styles.root}>
+        <SafeBlueArea style={{ flex: 1, paddingTop: 20 }}>
           <BlueSpacing20 />
           <BlueSpacing20 />
           <BlueSpacing20 />
           <BlueSpacing20 />
           <BlueSpacing20 />
 
-          <BlueText h4>{loc.transactions.cpfp_no_bump}</BlueText>
+          <BlueText h4>This transaction is not bumpable</BlueText>
         </SafeBlueArea>
       );
     }
 
-    return (
-      <SafeBlueArea style={styles.root}>
-        <ScrollView>{this.renderStage1(loc.transactions.rbf_explain)}</ScrollView>
-      </SafeBlueArea>
+    return this.renderStage1(
+      'We will replace this transaction with the one with higher fees, so it should be mined faster. This is called RBF - Replace By Fee.',
     );
   }
 }
@@ -117,4 +118,3 @@ RBFBumpFee.propTypes = {
     }),
   }),
 };
-RBFBumpFee.navigationOptions = navigationStyle({}, opts => ({ ...opts, title: loc.transactions.rbf_title }));

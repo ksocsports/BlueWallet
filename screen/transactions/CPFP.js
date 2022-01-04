@@ -1,113 +1,65 @@
-import React, { Component } from 'react';
+/* global alert */
 import PropTypes from 'prop-types';
-import {
-  ActivityIndicator,
-  Platform,
-  View,
-  TextInput,
-  TouchableOpacity,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  KeyboardAvoidingView,
-} from 'react-native';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { Text } from 'react-native-elements';
+import React, { Component } from 'react';
+import { ActivityIndicator, View, TextInput, TouchableOpacity, Linking, Clipboard } from 'react-native';
+import { Icon, Text } from 'react-native-elements';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 
-import { BlueButton, BlueCard, BlueReplaceFeeSuggestions, BlueSpacing, BlueSpacing20, BlueText, SafeBlueArea } from '../../BlueComponents';
-import navigationStyle from '../../components/navigationStyle';
-import { BlueCurrentTheme } from '../../components/themes';
+import {
+  BlueSpacing20,
+  BlueReplaceFeeSuggestions,
+  BlueButton,
+  SafeBlueArea,
+  BlueCard,
+  BlueText,
+  BlueSpacing,
+  BlueNavigationStyle,
+} from '../../BlueComponents';
 import { HDSegwitBech32Transaction, HDSegwitBech32Wallet } from '../../class';
-import loc from '../../loc';
-import { BlueStorageContext } from '../../blue_modules/storage-context';
-import Notifications from '../../blue_modules/notifications';
-import alert from '../../components/Alert';
-const BlueElectrum = require('../../blue_modules/BlueElectrum');
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    paddingTop: 20,
-  },
-  explain: {
-    paddingBottom: 16,
-  },
-  center: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  hex: {
-    color: BlueCurrentTheme.colors.buttonAlternativeTextColor,
-    fontWeight: '500',
-  },
-  hexInput: {
-    borderColor: '#ebebeb',
-    backgroundColor: '#d2f8d6',
-    borderRadius: 4,
-    marginTop: 20,
-    color: '#37c0a1',
-    fontWeight: '500',
-    fontSize: 14,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 16,
-  },
-  action: {
-    marginVertical: 24,
-  },
-  actionText: {
-    color: '#9aa0aa',
-    fontSize: 15,
-    fontWeight: '500',
-    alignSelf: 'center',
-  },
-  doneWrap: {
-    flex: 1,
-    paddingTop: 19,
-  },
-  doneCard: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingTop: 76,
-    paddingBottom: 16,
-  },
-  blueBigCheckmark: {
-    marginTop: 43,
-    marginBottom: 53,
-  },
-});
+/** @type {AppStorage} */
+const BlueApp = require('../../BlueApp');
+const BlueElectrum = require('../../BlueElectrum');
+const EV = require('../../events');
+const loc = require('../../loc');
+/** @type {AppStorage} */
 
 export default class CPFP extends Component {
-  static contextType = BlueStorageContext;
+  static navigationOptions = () => ({
+    ...BlueNavigationStyle(null, false),
+    title: 'Bump fee (CPFP)',
+  });
+
   constructor(props) {
     super(props);
     let txid;
     let wallet;
-    if (props.route.params) txid = props.route.params.txid;
-    if (props.route.params) wallet = props.route.params.wallet;
+    if (props.navigation.state.params) txid = props.navigation.state.params.txid;
+    if (props.navigation.state.params) wallet = props.navigation.state.params.wallet;
 
     this.state = {
       isLoading: true,
       stage: 1,
       txid,
       wallet,
-      isElectrumDisabled: true,
     };
   }
 
-  broadcast = () => {
+  broadcast() {
     this.setState({ isLoading: true }, async () => {
       try {
         await BlueElectrum.ping();
         await BlueElectrum.waitTillConnected();
         const result = await this.state.wallet.broadcastTx(this.state.txhex);
         if (result) {
+          console.log('broadcast result = ', result);
+          EV(EV.enum.REMOTE_TRANSACTIONS_COUNT_CHANGED); // someone should fetch txs
+          this.setState({ stage: 3, isLoading: false });
           this.onSuccessBroadcast();
         } else {
           ReactNativeHapticFeedback.trigger('notificationError', { ignoreAndroidSystemSettings: false });
           this.setState({ isLoading: false });
-          alert(loc.errors.broadcast);
+          alert('Broadcast failed');
         }
       } catch (error) {
         ReactNativeHapticFeedback.trigger('notificationError', { ignoreAndroidSystemSettings: false });
@@ -115,13 +67,10 @@ export default class CPFP extends Component {
         alert(error.message);
       }
     });
-  };
+  }
 
   onSuccessBroadcast() {
-    this.context.txMetadata[this.state.newTxid] = { memo: 'Child pays for parent (CPFP)' };
-    Notifications.majorTomToGroundControl([], [], [this.state.newTxid]);
-    this.context.sleep(4000).then(() => this.context.fetchAndSaveWalletTransactions(this.state.wallet.getID()));
-    this.props.navigation.navigate('Success', { onDonePressed: () => this.props.navigation.popToTop(), amount: undefined });
+    BlueApp.tx_metadata[this.state.newTxid] = { memo: 'Child pays for parent (CPFP)' };
   }
 
   async componentDidMount() {
@@ -131,12 +80,7 @@ export default class CPFP extends Component {
       newFeeRate: '',
       nonReplaceable: false,
     });
-    try {
-      await this.checkPossibilityOfCPFP();
-    } catch (_) {
-      // if anything goes wrong we just show "this is not bumpable" message
-      this.setState({ nonReplaceable: true, isLoading: false });
-    }
+    await this.checkPossibilityOfCPFP();
   }
 
   async checkPossibilityOfCPFP() {
@@ -166,62 +110,22 @@ export default class CPFP extends Component {
         this.setState({ isLoading: false });
       } catch (_) {
         this.setState({ isLoading: false });
-        alert(loc.errors.error + ': ' + _.message);
+        alert('Failed: ' + _.message);
       }
     }
   }
 
-  renderStage1(text) {
-    return (
-      <KeyboardAvoidingView enabled={!Platform.isPad} behavior="position">
-        <SafeBlueArea style={styles.root}>
-          <BlueSpacing />
-          <BlueCard style={styles.center}>
-            <BlueText>{text}</BlueText>
-            <BlueSpacing20 />
-            <BlueReplaceFeeSuggestions onFeeSelected={fee => this.setState({ newFeeRate: fee })} transactionMinimum={this.state.feeRate} />
-            <BlueSpacing />
-            <BlueButton
-              disabled={this.state.newFeeRate <= this.state.feeRate}
-              onPress={() => this.createTransaction()}
-              title={loc.transactions.cpfp_create}
-            />
-          </BlueCard>
-        </SafeBlueArea>
-      </KeyboardAvoidingView>
-    );
-  }
-
-  renderStage2() {
-    return (
-      <View style={styles.root}>
-        <BlueCard style={styles.center}>
-          <BlueText style={styles.hex}>{loc.send.create_this_is_hex}</BlueText>
-          <TextInput style={styles.hexInput} height={112} multiline editable value={this.state.txhex} />
-
-          <TouchableOpacity accessibilityRole="button" style={styles.action} onPress={() => Clipboard.setString(this.state.txhex)}>
-            <Text style={styles.actionText}>{loc.send.create_copy}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityRole="button"
-            style={styles.action}
-            onPress={() => Linking.openURL('https://coinb.in/?verify=' + this.state.txhex)}
-          >
-            <Text style={styles.actionText}>{loc.send.create_verify}</Text>
-          </TouchableOpacity>
-          <BlueButton disabled={this.context.isElectrumDisabled} onPress={this.broadcast} title={loc.send.confirm_sendNow} />
-        </BlueCard>
-      </View>
-    );
-  }
-
   render() {
     if (this.state.isLoading) {
-      return (
-        <View style={styles.root}>
+      return ((
+        <View style={{ flex: 1, paddingTop: 20 }}>
           <ActivityIndicator />
         </View>
-      );
+      ));
+    }
+
+    if (this.state.stage === 3) {
+      return this.renderStage3();
     }
 
     if (this.state.stage === 2) {
@@ -229,24 +133,119 @@ export default class CPFP extends Component {
     }
 
     if (this.state.nonReplaceable) {
-      return (
-        <SafeBlueArea style={styles.root}>
+      return ((
+        <SafeBlueArea style={{ flex: 1, paddingTop: 20 }}>
           <BlueSpacing20 />
           <BlueSpacing20 />
           <BlueSpacing20 />
           <BlueSpacing20 />
           <BlueSpacing20 />
 
-          <BlueText h4>{loc.transactions.cpfp_no_bump}</BlueText>
+          <BlueText h4>This transaction is not bumpable</BlueText>
         </SafeBlueArea>
-      );
+      ));
     }
 
-    return (
-      <SafeBlueArea style={styles.explain}>
-        <ScrollView>{this.renderStage1(loc.transactions.cpfp_exp)}</ScrollView>
-      </SafeBlueArea>
+    return this.renderStage1(
+      'We will create another transaction that spends your unconfirmed transaction. Total fee will be higher than original transaction\n' +
+        'fee, so it should be mined faster. This is called CPFP - Child Pays For Parent.',
     );
+  }
+
+  renderStage2() {
+    return ((
+      <View style={{ flex: 1, paddingTop: 20 }}>
+        <BlueCard style={{ alignItems: 'center', flex: 1 }}>
+          <BlueText style={{ color: '#0c2550', fontWeight: '500' }}>{loc.send.create.this_is_hex}</BlueText>
+          <TextInput
+            style={{
+              borderColor: '#ebebeb',
+              backgroundColor: '#d2f8d6',
+              borderRadius: 4,
+              marginTop: 20,
+              color: '#37c0a1',
+              fontWeight: '500',
+              fontSize: 14,
+              paddingHorizontal: 16,
+              paddingBottom: 16,
+              paddingTop: 16,
+            }}
+            height={112}
+            multiline
+            editable
+            value={this.state.txhex}
+          />
+
+          <TouchableOpacity style={{ marginVertical: 24 }} onPress={() => Clipboard.setString(this.state.txhex)}>
+            <Text style={{ color: '#9aa0aa', fontSize: 15, fontWeight: '500', alignSelf: 'center' }}>
+              Copy and broadcast later
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ marginVertical: 24 }}
+            onPress={() => Linking.openURL('https://coinb.in/?verify=' + this.state.txhex)}>
+            <Text style={{ color: '#9aa0aa', fontSize: 15, fontWeight: '500', alignSelf: 'center' }}>
+              Verify on coinb.in
+            </Text>
+          </TouchableOpacity>
+          <BlueButton onPress={() => this.broadcast()} title={loc.send.confirm.sendNow} />
+        </BlueCard>
+      </View>
+    ));
+  }
+
+  renderStage3() {
+    return ((
+      <SafeBlueArea style={{ flex: 1, paddingTop: 19 }}>
+        <BlueCard style={{ alignItems: 'center', flex: 1 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', paddingTop: 76, paddingBottom: 16 }} />
+        </BlueCard>
+        <View
+          style={{
+            backgroundColor: BlueApp.settings.buttonBackgroundColor,
+            color: BlueApp.settings.foregroundColor,
+            width: 120,
+            height: 120,
+            borderRadius: 60,
+            alignSelf: 'center',
+            justifyContent: 'center',
+            marginTop: 43,
+            marginBottom: 53,
+          }}>
+          <Icon name="check" size={50} type="font-awesome" color="#0f5cc0" />
+        </View>
+        <BlueCard>
+          <BlueButton
+            onPress={() => {
+              this.props.navigation.popToTop();
+            }}
+            title={loc.send.success.done}
+          />
+        </BlueCard>
+      </SafeBlueArea>
+    ));
+  }
+
+  renderStage1(text) {
+    return ((
+      <SafeBlueArea style={{ flex: 1, paddingTop: 20 }}>
+        <BlueSpacing />
+        <BlueCard style={{ alignItems: 'center', flex: 1 }}>
+          <BlueText>{text}</BlueText>
+          <BlueSpacing20 />
+          <BlueReplaceFeeSuggestions
+            onFeeSelected={fee => this.setState({ newFeeRate: fee })}
+            transactionMinimum={this.state.feeRate}
+          />
+          <BlueSpacing />
+          <BlueButton
+            disabled={this.state.newFeeRate <= this.state.feeRate}
+            onPress={() => this.createTransaction()}
+            title="Create"
+          />
+        </BlueCard>
+      </SafeBlueArea>
+    ));
   }
 }
 
@@ -254,12 +253,11 @@ CPFP.propTypes = {
   navigation: PropTypes.shape({
     popToTop: PropTypes.func,
     navigate: PropTypes.func,
-  }),
-  route: PropTypes.shape({
-    params: PropTypes.shape({
-      txid: PropTypes.string,
-      wallet: PropTypes.object,
+    state: PropTypes.shape({
+      params: PropTypes.shape({
+        txid: PropTypes.string,
+        wallet: PropTypes.object,
+      }),
     }),
   }),
 };
-CPFP.navigationOptions = navigationStyle({}, opts => ({ ...opts, title: loc.transactions.cpfp_title }));

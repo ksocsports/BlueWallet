@@ -1,1 +1,1 @@
-bitcoin,cartera,blockchain,btc,criptomoneda,comprar,samourai,electrum,ethereum,moneda
+bitcoin,wallet,segwit,crypto,blockchain,btc,cryptocurrency,wallet,bread,samourai,lightning,ethereum

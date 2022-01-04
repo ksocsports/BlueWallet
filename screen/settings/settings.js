@@ -1,43 +1,122 @@
-import React, { useContext } from 'react';
-import { ScrollView, StyleSheet, Platform, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-community/async-storage';
+import React, { Component, useEffect, useState } from 'react';
+import { ScrollView, View, Switch, TouchableOpacity } from 'react-native';
+import { useNavigation } from 'react-navigation-hooks';
 
-import navigationStyle from '../../components/navigationStyle';
-import { BlueListItem, BlueHeaderDefaultSub } from '../../BlueComponents';
-import loc from '../../loc';
-import { BlueStorageContext } from '../../blue_modules/storage-context';
+import {
+  BlueText,
+  BlueCard,
+  BlueLoading,
+  SafeBlueArea,
+  BlueNavigationStyle,
+  BlueHeaderDefaultSub,
+  BlueListItem,
+} from '../../BlueComponents';
+import { AppStorage } from '../../class';
+import Biometric from '../../class/biometrics';
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-});
+const BlueApp = require('../../BlueApp');
+const loc = require('../../loc');
 
-const Settings = () => {
+export const Settings = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [advancedModeEnabled, setAdvancedModeEnabled] = useState(false);
+  const [biometrics, setBiometrics] = useState({
+    isDeviceBiometricCapable: false,
+    isBiometricsEnabled: false,
+    biometricsType: '',
+  });
   const { navigate } = useNavigation();
-  // By simply having it here, it'll re-render the UI if language is changed
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { language } = useContext(BlueStorageContext);
 
-  return (
-    <>
-      <View />
-      <ScrollView style={styles.root}>
-        {Platform.OS === 'android' ? <BlueHeaderDefaultSub leftText={loc.settings.header} /> : <></>}
-        <BlueListItem title={loc.settings.general} onPress={() => navigate('GeneralSettings')} testID="GeneralSettings" chevron />
-        <BlueListItem title={loc.settings.currency} onPress={() => navigate('Currency')} testID="Currency" chevron />
-        <BlueListItem title={loc.settings.language} onPress={() => navigate('Language')} testID="Language" chevron />
-        <BlueListItem title={loc.settings.encrypt_title} onPress={() => navigate('EncryptStorage')} testID="SecurityButton" chevron />
-        <BlueListItem title={loc.settings.network} onPress={() => navigate('NetworkSettings')} testID="NetworkSettings" chevron />
-        <BlueListItem title={loc.settings.tools} onPress={() => navigate('Tools')} testID="Tools" chevron />
-        <BlueListItem title={loc.settings.about} onPress={() => navigate('About')} testID="AboutButton" chevron />
+  useEffect(() => {
+    (async () => {
+      setAdvancedModeEnabled(!!(await AsyncStorage.getItem(AppStorage.ADVANCED_MODE_ENABLED)));
+      const isBiometricsEnabled = await Biometric.isBiometricUseEnabled();
+      const isDeviceBiometricCapable = await Biometric.isDeviceBiometricCapable();
+      const biometricsType = (await Biometric.biometricType()) || 'biometrics';
+      setBiometrics({ isBiometricsEnabled, isDeviceBiometricCapable, biometricsType });
+      setIsLoading(false);
+    })();
+  });
+
+  const onAdvancedModeSwitch = async value => {
+    if (value) {
+      await AsyncStorage.setItem(AppStorage.ADVANCED_MODE_ENABLED, '1');
+    } else {
+      await AsyncStorage.removeItem(AppStorage.ADVANCED_MODE_ENABLED);
+    }
+    setAdvancedModeEnabled(value);
+  };
+
+  const onUseBiometricSwitch = async value => {
+    const isBiometricsEnabled = biometrics;
+    if (await Biometric.unlockWithBiometrics()) {
+      isBiometricsEnabled.isBiometricsEnabled = value;
+      await Biometric.setBiometricUseEnabled(value);
+      setBiometrics(isBiometricsEnabled);
+    }
+  };
+
+  const onShowAdvancedOptions = () => {
+    setShowAdvancedOptions(!showAdvancedOptions);
+  };
+
+  return isLoading ? (
+    <BlueLoading />
+  ) : (
+    <SafeBlueArea forceInset={{ horizontal: 'always' }} style={{ flex: 1 }}>
+      <ScrollView>
+        {BlueApp.getWallets().length > 1 && (
+          <BlueListItem component={TouchableOpacity} onPress={() => navigate('DefaultView')} title="On Launch" />
+        )}
+        <BlueListItem
+          title={loc.settings.encrypt_storage}
+          onPress={() => navigate('EncryptStorage')}
+          component={TouchableOpacity}
+        />
+        {biometrics.isDeviceBiometricCapable && (
+          <BlueListItem
+            hideChevron
+            title={`Use ${biometrics.biometricsType}`}
+            switchButton
+            onSwitch={onUseBiometricSwitch}
+            switched={biometrics.isBiometricsEnabled}
+          />
+        )}
+        <BlueListItem title={loc.settings.language} component={TouchableOpacity} onPress={() => navigate('Language')} />
+        <BlueListItem
+          title={'Electrum server'}
+          component={TouchableOpacity}
+          onPress={() => navigate('ElectrumSettings')}
+        />
+        <BlueListItem
+          title={loc.settings.advanced_options}
+          component={TouchableOpacity}
+          onPress={onShowAdvancedOptions}
+        />
+        {showAdvancedOptions && (
+          <BlueCard>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <BlueText>{loc.settings.enable_advanced_mode}</BlueText>
+              <Switch value={advancedModeEnabled} onValueChange={onAdvancedModeSwitch} />
+            </View>
+          </BlueCard>
+        )}
+
+        <BlueListItem title={loc.settings.about} component={TouchableOpacity} onPress={() => navigate('About')} />
       </ScrollView>
-    </>
+    </SafeBlueArea>
   );
 };
 
-export default Settings;
-Settings.navigationOptions = navigationStyle({
-  headerTitle: Platform.select({ ios: loc.settings.header, default: '' }),
-  headerLargeTitle: true,
-});
+export default class SettingsContainer extends Component {
+  static navigationOptions = {
+    ...BlueNavigationStyle,
+    title: loc.settings.header.slice(0, 1).toUpperCase() + loc.settings.header.slice(1, loc.settings.header.length),
+  };
+
+  render() {
+    return <Settings />;
+  }
+}

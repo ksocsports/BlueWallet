@@ -1,53 +1,37 @@
-Uma carteira Bitcoin que permite armazenar, enviar bitcoin, receber bitcoin e comprar bitcoin com foco em segurança e simplicidade.
+Guardar, enviar e receber bitcoin com uma carteira focada na segurança e simplicidade.
 
-BlueWallet é uma carteira de bitcoin onde você tem posse das chaves privadas. Uma carteira Bitcoin criada para a comunidade por usuários do Bitcoin.
+Na Ksoc você possui as suas chaves privadas. Uma carteira Bitcoin focada nos usuários.
 
-Você pode fazer transações com qualquer pessoa no mundo e transformar o sistema financeiro direto do seu bolso.
+Você pode instantaneamente transacionar com qualquer pessoa no mundo e transformar o sistema financeiro diretamente do seu bolso.
 
-Crie um número ilimitado de carteiras de bitcoin gratuitamente ou importe sua carteira existente. É simples e fácil.
+Crie carteiras Bitcoin ilimitadas e gratuitamente, ou acesse as suas carteiras existentes através do seu dispositivo iOS. É simples e rápido.
 
-_____
+As funcionalidades disponíveis:
 
-Entenda o que oferecemos:
-
-
-1 - Criada com segurança em mente
+1 - Segurança por design
 
 Open Source
-Licença MIT, você pode compilar e rodar a sua própria versão! Feita com ReactNative
+Este aplicativo tem licença MIT, pode construir e lança-lo você mesmo! Feito em ReactNative
 
 Negação plausível
-Senha que descriptografa carteiras de bitcoin falsas para utilizar em situações de estresse
+Senha falsa que decripta wallets falsas. Para casos especias onde possa ser obrigado a revelar a sua senha, pode revelar a senha falsa, mantenha as suas bitcoin protegidas
 
-Totalmente criptografada
-Além da criptografia multicamadas do iOS, criptografamos tudo com senhas adicionais
+Encriptação completa
+Construída em cima da multi-camada de encritação do iOS, A Ksoc encripta tudo com uma adicional senha de usuário
 
-Nó completo
-Conecte com seu full node Bitcoin usando Electrum
+Carteiras SegWit e HD
+SegWit suportado (Ajuda a diminuir os fees ainda mais) e carteiras HD activadas
 
-Armazenamento frio (Cold)
-Conecte com sua hardwallet e mantenha suas moedas em armazenamento frio
+2 - Focada na sua experiência
 
-2 - Foco na sua experiência
+Esteja em control
+As chaves privadas nunca saiem do celular, você controla as suas chaves privadas
 
-Fique no controle
-As chaves privadas nunca saem do dispositivo.
-Você controla suas chaves privadas
+Fees flexíveis
+A começar em 1 Satoshi. Não page a mais por transações
 
-Taxas flexíveis
-A partir de 1 satoshi. Você decide
+Substituição de Fee (RBF)
+Acelere as suas transações aumentendo o fee (BIP125). Pode também alterar o endereço de destinatário em transações não confirmadas
 
-Replace-By-Fee
-(RBF) Acelere suas transações aumentando a taxa depois de enviar (BIP125)
-
-Carteiras Watch-only
-Carteiras somente leitura para você observar seu armazenamento frio sem tocar a hardwallet.
-
-Lightning Network
-Carteira Lightning sem precisar configurar nada. Transações muito baratas e rápidas para ter a melhor experiência com o Bitcoin.
-
-Compre Bitcoin
-Faça parte da revolução financeira aberta com a habilidade de comprar Bitcoin direto na sua carteira.
-
-Trader local
-Uma plataforma de negociação de Bitcoin p2p que permite comprar e vender bitcoin de outros usuários diretamente, sem terceiros.
+Carteira Sentinela
+Carteira de "assitir apenas", observe o seu armazenamento externo de Bitcoin sem ter de lhe tocar

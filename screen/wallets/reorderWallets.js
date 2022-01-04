@@ -1,206 +1,178 @@
-import React, { useEffect, useState, useRef, useContext } from 'react';
-import { View, ActivityIndicator, Image, Text, StyleSheet, StatusBar, I18nManager, TouchableOpacity } from 'react-native';
-import { BluePrivateBalance } from '../../BlueComponents';
-import SortableList from 'react-native-sortable-list';
-import LinearGradient from 'react-native-linear-gradient';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
+import { View, ActivityIndicator, Image, Text } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
-import { useNavigation, useTheme } from '@react-navigation/native';
-import navigationStyle from '../../components/navigationStyle';
-import { LightningCustodianWallet, LightningLdkWallet, MultisigHDWallet } from '../../class';
-import WalletGradient from '../../class/wallet-gradient';
-import loc, { formatBalance, transactionTimeToReadable } from '../../loc';
-import { BlueStorageContext } from '../../blue_modules/storage-context';
+import LinearGradient from 'react-native-linear-gradient';
+import SortableList from 'react-native-sortable-list';
 
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    paddingTop: 20,
-  },
-  root: {
-    flex: 1,
-  },
-  itemRoot: {
-    backgroundColor: 'transparent',
-    padding: 10,
-  },
-  gradient: {
-    padding: 15,
-    borderRadius: 10,
-    minHeight: 164,
-    elevation: 5,
-  },
-  image: {
-    width: 99,
-    height: 94,
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-  },
-  transparentText: {
-    backgroundColor: 'transparent',
-  },
-  label: {
-    backgroundColor: 'transparent',
-    fontSize: 19,
-    color: '#fff',
-    writingDirection: I18nManager.isRTL ? 'rtl' : 'ltr',
-  },
-  balance: {
-    backgroundColor: 'transparent',
-    fontWeight: 'bold',
-    fontSize: 36,
-    color: '#fff',
-    writingDirection: I18nManager.isRTL ? 'rtl' : 'ltr',
-  },
-  latestTxLabel: {
-    backgroundColor: 'transparent',
-    fontSize: 13,
-    color: '#fff',
-    writingDirection: I18nManager.isRTL ? 'rtl' : 'ltr',
-  },
-  latestTxValue: {
-    backgroundColor: 'transparent',
-    fontWeight: 'bold',
-    fontSize: 16,
-    color: '#fff',
-    writingDirection: I18nManager.isRTL ? 'rtl' : 'ltr',
-  },
-});
+import { SafeBlueArea, BlueNavigationStyle } from '../../BlueComponents';
+import WalletGradient from '../../class/walletGradient';
 
-const ReorderWallets = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [data, setData] = useState([]);
-  const [hasMovedARow, setHasMovedARow] = useState(false);
-  const sortableList = useRef();
-  const { colors, closeImage } = useTheme();
-  const { wallets, setWalletsWithNewOrder } = useContext(BlueStorageContext);
-  const navigation = useNavigation();
-  const stylesHook = {
-    root: {
-      backgroundColor: colors.elevated,
-    },
-    loading: {
-      backgroundColor: colors.elevated,
-    },
-  };
+const BlueApp = require('../../BlueApp');
+const EV = require('../../events');
+/** @type {AppStorage} */
+const loc = require('../../loc/');
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity
-          accessibilityRole="button"
-          onPress={() => {
-            if (sortableList.current?.state.data.length === data.length && hasMovedARow) {
-              const newWalletsOrderArray = [];
-              sortableList.current.state.order.forEach(element => {
-                newWalletsOrderArray.push(data[element]);
-              });
-              setWalletsWithNewOrder(newWalletsOrderArray);
-            }
-            navigation.goBack();
-          }}
-          testID="NavigationCloseButton"
-        >
-          <Image source={closeImage} />
-        </TouchableOpacity>
-      ),
+export default class ReorderWallets extends Component {
+  static navigationOptions = ({ navigation }) => ({
+    ...BlueNavigationStyle(
+      navigation,
+      true,
+      navigation.getParam('customCloseButtonFunction') ? navigation.state.params.customCloseButtonFunction : undefined,
+    ),
+    title: loc.wallets.reorder.title,
+  });
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      isLoading: true,
+      data: [],
+      hasMovedARow: false,
+    };
+  }
+
+  componentDidMount() {
+    this.props.navigation.setParams({
+      customCloseButtonFunction: async () => {
+        if (this.sortableList.state.data.length === this.state.data.length && this.state.hasMovedARow) {
+          const newWalletsOrderArray = [];
+          this.sortableList.state.order.forEach(element => {
+            newWalletsOrderArray.push(this.state.data[element]);
+          });
+          BlueApp.wallets = newWalletsOrderArray;
+          await BlueApp.saveToDisk();
+          setTimeout(function() {
+            EV(EV.enum.WALLETS_COUNT_CHANGED);
+          }, 500); // adds some animaton
+          this.props.navigation.dismiss();
+        } else {
+          this.props.navigation.dismiss();
+        }
+      },
     });
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigation, hasMovedARow]);
+    const wallets = BlueApp.getWallets();
+    this.setState({
+      data: wallets,
+      isLoading: false,
+    });
+  }
 
-  useEffect(() => {
-    setData(wallets);
-    setIsLoading(false);
-  }, [wallets]);
-
-  const renderItem = (item, _active) => {
+  _renderItem = (item, _active) => {
     if (!item.data) {
       return;
     }
     item = item.data;
 
     return (
-      <View shadowOpacity={40 / 100} shadowOffset={{ width: 0, height: 0 }} shadowRadius={5} style={styles.itemRoot}>
-        <LinearGradient shadowColor="#000000" colors={WalletGradient.gradientsFor(item.type)} style={styles.gradient}>
+      <View
+        shadowOpacity={40 / 100}
+        shadowOffset={{ width: 0, height: 0 }}
+        shadowRadius={5}
+        style={{ backgroundColor: 'transparent', padding: 10, marginVertical: 17 }}>
+        <LinearGradient
+          shadowColor="#000000"
+          colors={WalletGradient.gradientsFor(item.type)}
+          style={{
+            padding: 15,
+            borderRadius: 10,
+            minHeight: 164,
+            elevation: 5,
+          }}>
           <Image
-            source={(() => {
-              switch (item.type) {
-                case LightningLdkWallet.type:
-                case LightningCustodianWallet.type:
-                  return I18nManager.isRTL ? require('../../img/lnd-shape-rtl.png') : require('../../img/lnd-shape.png');
-                case MultisigHDWallet.type:
-                  return I18nManager.isRTL ? require('../../img/vault-shape-rtl.png') : require('../../img/vault-shape.png');
-                default:
-                  return I18nManager.isRTL ? require('../../img/btc-shape-rtl.png') : require('../../img/btc-shape.png');
-              }
-            })()}
-            style={styles.image}
+            source={require('../../img/btc-shape.png')}
+            style={{
+              width: 99,
+              height: 94,
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+            }}
           />
 
-          <Text style={styles.transparentText} />
-          <Text numberOfLines={1} style={styles.label}>
+          <Text style={{ backgroundColor: 'transparent' }} />
+          <Text
+            numberOfLines={1}
+            style={{
+              backgroundColor: 'transparent',
+              fontSize: 19,
+              color: '#fff',
+            }}>
             {item.getLabel()}
           </Text>
-          {item.hideBalance ? (
-            <BluePrivateBalance />
-          ) : (
-            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.balance}>
-              {formatBalance(Number(item.getBalance()), item.getPreferredBalanceUnit(), true)}
-            </Text>
-          )}
-          <Text style={styles.transparentText} />
-          <Text numberOfLines={1} style={styles.latestTxLabel}>
-            {loc.wallets.list_latest_transaction}
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={{
+              backgroundColor: 'transparent',
+              fontWeight: 'bold',
+              fontSize: 36,
+              color: '#fff',
+            }}>
+            {loc.formatBalance(Number(item.getBalance()), item.getPreferredBalanceUnit(), true)}
           </Text>
-          <Text numberOfLines={1} style={styles.latestTxValue}>
-            {item.getTransactions().find(tx => tx.confirmations === 0)
-              ? loc.transactions.pending.toLowerCase()
-              : transactionTimeToReadable(item.getLatestTransactionTime())}
+          <Text style={{ backgroundColor: 'transparent' }} />
+          <Text
+            numberOfLines={1}
+            style={{
+              backgroundColor: 'transparent',
+              fontSize: 13,
+              color: '#fff',
+            }}>
+            {loc.wallets.list.latest_transaction}
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={{
+              backgroundColor: 'transparent',
+              fontWeight: 'bold',
+              fontSize: 16,
+              color: '#fff',
+            }}>
+            {loc.transactionTimeToReadable(item.getLatestTransactionTime())}
           </Text>
         </LinearGradient>
       </View>
     );
   };
 
-  const onChangeOrder = () => {
-    ReactNativeHapticFeedback.trigger('impactMedium', { ignoreAndroidSystemSettings: false });
-    setHasMovedARow(true);
-  };
+  render() {
+    if (this.state.isLoading) {
+      return (
+        <View style={{ flex: 1, paddingTop: 20 }}>
+          <ActivityIndicator />
+        </View>
+      );
+    }
 
-  const onActivateRow = () => {
-    ReactNativeHapticFeedback.trigger('selection', { ignoreAndroidSystemSettings: false });
-  };
+    return (
+      <SafeBlueArea>
+        <SortableList
+          ref={ref => (this.sortableList = ref)}
+          style={{ flex: 1 }}
+          data={this.state.data}
+          renderRow={this._renderItem}
+          onChangeOrder={() => {
+            ReactNativeHapticFeedback.trigger('impactMedium', { ignoreAndroidSystemSettings: false });
+            this.setState({ hasMovedARow: true });
+          }}
+          onActivateRow={() => {
+            ReactNativeHapticFeedback.trigger('selection', { ignoreAndroidSystemSettings: false });
+          }}
+          onReleaseRow={() => {
+            ReactNativeHapticFeedback.trigger('impactLight', { ignoreAndroidSystemSettings: false });
+          }}
+        />
+      </SafeBlueArea>
+    );
+  }
+}
 
-  const onReleaseRow = () => {
-    ReactNativeHapticFeedback.trigger('impactLight', { ignoreAndroidSystemSettings: false });
-  };
-
-  return isLoading ? (
-    <View style={[styles.loading, stylesHook.loading]}>
-      <ActivityIndicator />
-    </View>
-  ) : (
-    <View style={[styles.root, stylesHook.root]}>
-      <StatusBar barStyle="default" />
-      <SortableList
-        ref={sortableList}
-        data={data}
-        renderRow={renderItem}
-        onChangeOrder={onChangeOrder}
-        onActivateRow={onActivateRow}
-        onReleaseRow={onReleaseRow}
-        style={styles.root}
-      />
-    </View>
-  );
+ReorderWallets.propTypes = {
+  navigation: PropTypes.shape({
+    navigate: PropTypes.func,
+    setParams: PropTypes.func,
+    dismiss: PropTypes.func,
+  }),
 };
-
-ReorderWallets.navigationOptions = navigationStyle(
-  {
-    headerHideBackButton: true,
-  },
-  opts => ({ ...opts, headerTitle: loc.wallets.reorder_title }),
-);
-
-export default ReorderWallets;

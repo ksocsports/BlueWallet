@@ -1,79 +1,84 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { View, TouchableWithoutFeedback } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
+import { TouchableOpacity, View } from 'react-native';
 
-import navigationStyle from '../../components/navigationStyle';
-import { SafeBlueArea, BlueCard, BlueListItem, BlueText } from '../../BlueComponents';
-import OnAppLaunch from '../../class/on-app-launch';
-import loc from '../../loc';
-import { BlueStorageContext } from '../../blue_modules/storage-context';
+import { SafeBlueArea, BlueNavigationStyle, BlueListItem } from '../../BlueComponents';
+import OnAppLaunch from '../../class/onAppLaunch';
 
-const DefaultView = () => {
-  const [defaultWalletLabel, setDefaultWalletLabel] = useState('');
-  const [viewAllWalletsEnabled, setViewAllWalletsEnabled] = useState(true);
-  const { navigate, pop } = useNavigation();
-  const { wallets } = useContext(BlueStorageContext);
+const BlueApp = require('../../BlueApp');
 
-  useEffect(() => {
-    (async () => {
-      const viewAllWalletsEnabled = await OnAppLaunch.isViewAllWalletsEnabled();
-      let defaultWalletLabel = '';
-      const wallet = await OnAppLaunch.getSelectedDefaultWallet();
-      if (wallet) {
-        defaultWalletLabel = wallet.getLabel();
-      }
-      setDefaultWalletLabel(defaultWalletLabel);
-      setViewAllWalletsEnabled(viewAllWalletsEnabled);
-    })();
+export default class DefaultView extends Component {
+  static navigationOptions = () => ({
+    ...BlueNavigationStyle(),
+    title: 'On Launch',
   });
 
-  const onViewAllWalletsSwitchValueChanged = async value => {
+  constructor(props) {
+    super(props);
+    this.state = { defaultWalletLabel: '', viewAllWalletsEnabled: true };
+  }
+
+  async componentDidMount() {
+    const viewAllWalletsEnabled = await OnAppLaunch.isViewAllWalletsEnabled();
+    let defaultWalletLabel = '';
+    const wallet = await OnAppLaunch.getSelectedDefaultWallet();
+    if (wallet) {
+      defaultWalletLabel = wallet.getLabel();
+    }
+    this.setState({ viewAllWalletsEnabled, defaultWalletLabel });
+  }
+
+  selectWallet = () => {
+    this.props.navigation.navigate('SelectWallet', { onWalletSelect: this.onWalletSelectValueChanged });
+  };
+
+  onViewAllWalletsSwitchValueChanged = async value => {
     await OnAppLaunch.setViewAllWalletsEnabled(value);
     if (value) {
-      setViewAllWalletsEnabled(true);
-      setDefaultWalletLabel('');
+      return this.setState({ viewAllWalletsEnabled: true, defaultWalletLabel: '' });
     } else {
       const selectedWallet = await OnAppLaunch.getSelectedDefaultWallet();
-      setDefaultWalletLabel(selectedWallet.getLabel());
-      setViewAllWalletsEnabled(false);
+      return this.setState({ viewAllWalletsEnabled: false, defaultWalletLabel: selectedWallet.getLabel() });
     }
   };
 
-  const selectWallet = () => {
-    navigate('SelectWallet', { onWalletSelect: onWalletSelectValueChanged });
-  };
-
-  const onWalletSelectValueChanged = async wallet => {
+  onWalletSelectValueChanged = async wallet => {
     await OnAppLaunch.setViewAllWalletsEnabled(false);
     await OnAppLaunch.setSelectedDefaultWallet(wallet.getID());
-    setDefaultWalletLabel(wallet.getLabel());
-    setViewAllWalletsEnabled(false);
-    pop();
+    this.setState({ defaultWalletLabel: wallet.getLabel(), viewAllWalletsEnabled: false }, () =>
+      this.props.navigation.pop(),
+    );
   };
 
-  return (
-    <SafeBlueArea>
-      <View>
-        <BlueListItem
-          title={loc.settings.default_wallets}
-          Component={TouchableWithoutFeedback}
-          switch={{
-            onValueChange: onViewAllWalletsSwitchValueChanged,
-            value: viewAllWalletsEnabled,
-            disabled: wallets.length <= 0,
-          }}
-        />
-        <BlueCard>
-          <BlueText>{loc.settings.default_desc}</BlueText>
-        </BlueCard>
-        {!viewAllWalletsEnabled && (
-          <BlueListItem title={loc.settings.default_info} onPress={selectWallet} rightTitle={defaultWalletLabel} chevron />
-        )}
-      </View>
-    </SafeBlueArea>
-  );
+  render() {
+    return (
+      <SafeBlueArea forceInset={{ horizontal: 'always' }} style={{ flex: 1 }}>
+        <View>
+          <BlueListItem
+            title="View All Wallets"
+            hideChevron
+            switchButton
+            swithchEnabled={BlueApp.getWallets().length > 0}
+            switched={this.state.viewAllWalletsEnabled}
+            onSwitch={this.onViewAllWalletsSwitchValueChanged}
+          />
+          {!this.state.viewAllWalletsEnabled && (
+            <BlueListItem
+              title="Default into"
+              component={TouchableOpacity}
+              onPress={this.selectWallet}
+              rightTitle={this.state.defaultWalletLabel}
+            />
+          )}
+        </View>
+      </SafeBlueArea>
+    );
+  }
+}
+
+DefaultView.propTypes = {
+  navigation: PropTypes.shape({
+    navigate: PropTypes.func,
+    pop: PropTypes.func,
+  }),
 };
-
-DefaultView.navigationOptions = navigationStyle({}, opts => ({ ...opts, title: loc.settings.default_title }));
-
-export default DefaultView;

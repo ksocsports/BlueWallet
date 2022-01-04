@@ -1,67 +1,109 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { FlatList, StyleSheet } from 'react-native';
-import { useNavigation, useTheme } from '@react-navigation/native';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
+import { FlatList, TouchableOpacity } from 'react-native';
+import { Icon } from 'react-native-elements';
 
-import navigationStyle from '../../components/navigationStyle';
-import { BlueListItem } from '../../BlueComponents';
-import loc from '../../loc';
-import { AvailableLanguages } from '../../loc/languages';
-import { BlueStorageContext } from '../../blue_modules/storage-context';
-import alert from '../../components/Alert';
+import { BlueLoading, BlueText, SafeBlueArea, BlueListItem, BlueCard, BlueNavigationStyle } from '../../BlueComponents';
 
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-});
+const loc = require('../../loc');
 
-const Language = () => {
-  const { setLanguage, language } = useContext(BlueStorageContext);
-  const [selectedLanguage, setSelectedLanguage] = useState(loc.getLanguage());
-  const { setOptions } = useNavigation();
-  const { colors } = useTheme();
-  const stylesHook = StyleSheet.create({
-    flex: {
-      backgroundColor: colors.background,
-    },
+export default class Language extends Component {
+  static navigationOptions = () => ({
+    ...BlueNavigationStyle(),
+    title: loc.settings.language,
   });
 
-  useEffect(() => {
-    setOptions({ title: loc.settings.language });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language]);
+  constructor(props) {
+    super(props);
+    this.state = {
+      isLoading: true,
+      language: loc.getLanguage(),
+      availableLanguages: [
+        { label: 'English', value: 'en' },
+        { label: 'Afrikaans (AFR)', value: 'zar_afr' },
+        { label: 'Chinese (ZH)', value: 'zh_cn' },
+        { label: 'Chinese (TW)', value: 'zh_tw' },
+        { label: 'Croatian (HR)', value: 'hr_hr' },
+        { label: 'Česky (CZ)', value: 'cs_cz' },
+        { label: 'Danish (DK)', value: 'da_dk' },
+        { label: 'Deutsch (DE)', value: 'de_de' },
+        { label: 'Español (ES)', value: 'es' },
+        { label: 'Ελληνικά (EL)', value: 'el' },
+        { label: 'Italiano (IT)', value: 'it' },
+        { label: 'Suomi (FI)', value: 'fi_fi' },
+        { label: 'Français (FR)', value: 'fr_fr' },
+        { label: 'Indonesia (ID)', value: 'id_id' },
+        { label: '日本語 (JP)', value: 'jp_jp' },
+        { label: '한국어 (KO)', value: 'ko_kr' },
+        { label: 'Magyar (HU)', value: 'hu_hu' },
+        { label: 'Nederlands (NL)', value: 'nl_nl' },
+        { label: 'Norsk (NB)', value: 'nb_no' },
+        { label: 'Português (BR)', value: 'pt_br' },
+        { label: 'Português (PT)', value: 'pt_pt' },
+        { label: 'Русский', value: 'ru' },
+        { label: 'Svenska (SE)', value: 'sv_se' },
+        { label: 'Thai (TH)', value: 'th_th' },
+        { label: 'Vietnamese (VN)', value: 'vi_vn' },
+        { label: 'Українська', value: 'ua' },
+        { label: 'Türkçe (TR)', value: 'tr_tr' },
+        { label: 'Xhosa (XHO)', value: 'zar_xho' },
+      ],
+    };
+  }
 
-  const renderItem = item => {
+  async componentDidMount() {
+    this.setState({
+      isLoading: false,
+    });
+  }
+
+  renderItem = ({ item }) => {
     return (
-      <BlueListItem
+      <TouchableOpacity
         onPress={() => {
-          const currentLanguage = AvailableLanguages.find(language => language.value === selectedLanguage);
-          loc.saveLanguage(item.item.value).then(() => {
-            setSelectedLanguage(item.item.value);
-            setLanguage();
-            if (currentLanguage.isRTL || item.item.isRTL) {
-              alert(loc.settings.language_isRTL);
-            }
-          });
-        }}
-        title={item.item.label}
-        checkmark={selectedLanguage === item.item.value}
-      />
+          console.warn('setLanguage', item.value);
+          loc.saveLanguage(item.value);
+          return this.setState({ language: item.value });
+        }}>
+        <BlueListItem
+          title={item.label}
+          {...(this.state.language === item.value
+            ? {
+                rightIcon: <Icon name="check" type="font-awesome" color="#aeed6a" />,
+              }
+            : { hideChevron: true })}
+        />
+      </TouchableOpacity>
     );
   };
 
-  return (
-    <FlatList
-      style={[styles.flex, stylesHook.flex]}
-      keyExtractor={(_item, index) => `${index}`}
-      data={AvailableLanguages}
-      renderItem={renderItem}
-      initialNumToRender={25}
-      contentInsetAdjustmentBehavior="automatic"
-    />
-  );
+  render() {
+    if (this.state.isLoading) {
+      return <BlueLoading />;
+    }
+
+    return (
+      <SafeBlueArea forceInset={{ horizontal: 'always' }} style={{ flex: 1 }}>
+        <FlatList
+          style={{ flex: 1 }}
+          keyExtractor={(_item, index) => `${index}`}
+          data={this.state.availableLanguages}
+          extraData={this.state.availableLanguages}
+          renderItem={this.renderItem}
+        />
+        <BlueCard>
+          <BlueText>
+            When selecting a new language, restarting Ksoc may be required for the change to take effect.
+          </BlueText>
+        </BlueCard>
+      </SafeBlueArea>
+    );
+  }
+}
+
+Language.propTypes = {
+  navigation: PropTypes.shape({
+    navigate: PropTypes.func,
+    goBack: PropTypes.func,
+  }),
 };
-
-Language.navigationOptions = navigationStyle({}, opts => ({ ...opts, title: loc.settings.language }));
-
-export default Language;

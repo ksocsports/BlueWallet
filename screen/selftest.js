@@ -1,33 +1,22 @@
-import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { ScrollView, View, StyleSheet } from 'react-native';
-import wif from 'wif';
-import bip38 from 'bip38';
+import React, { Component } from 'react';
+import { ScrollView, View } from 'react-native';
 
-import loc from '../loc';
-import { BlueSpacing20, SafeBlueArea, BlueCard, BlueText, BlueLoading } from '../BlueComponents';
-import navigationStyle from '../components/navigationStyle';
-import {
-  SegwitP2SHWallet,
-  LegacyWallet,
-  HDSegwitP2SHWallet,
-  HDSegwitBech32Wallet,
-  HDAezeedWallet,
-  SLIP39LegacyP2PKHWallet,
-} from '../class';
+import { BlueLoading, BlueSpacing20, SafeBlueArea, BlueCard, BlueText, BlueNavigationStyle } from '../BlueComponents';
+import { SegwitP2SHWallet, LegacyWallet, HDSegwitP2SHWallet, HDSegwitBech32Wallet } from '../class';
+
+const BigNumber = require('bignumber.js');
 const bitcoin = require('bitcoinjs-lib');
-const BlueCrypto = require('react-native-blue-crypto');
-const encryption = require('../blue_modules/encryption');
-const BlueElectrum = require('../blue_modules/BlueElectrum');
-const bip32 = require('bip32');
 
-const styles = StyleSheet.create({
-  center: {
-    alignItems: 'center',
-  },
-});
+const BlueElectrum = require('../BlueElectrum');
+const encryption = require('../encryption');
 
 export default class Selftest extends Component {
+  static navigationOptions = () => ({
+    ...BlueNavigationStyle(),
+    title: 'Self test',
+  });
+
   constructor(props) {
     super(props);
     this.state = {
@@ -46,12 +35,14 @@ export default class Selftest extends Component {
         for (let c = 0; c < 1000; c++) {
           await w.generate();
           if (uniqs[w.getSecret()]) {
-            throw new Error('failed to generate unique private key');
+            errorMessage += 'failed to generate unique private key; ';
+            isOk = false;
+            break;
           }
           uniqs[w.getSecret()] = 1;
         }
       } else {
-        // skipping RN-specific test
+        console.warn('skipping RN-specific test');
       }
 
       //
@@ -65,87 +56,161 @@ export default class Selftest extends Component {
           throw new Error('BlueElectrum getBalanceByAddress failure, got ' + JSON.stringify(electrumBalance));
 
         const electrumTxs = await BlueElectrum.getTransactionsByAddress(addr4elect);
-        if (electrumTxs.length !== 1) throw new Error('BlueElectrum getTransactionsByAddress failure, got ' + JSON.stringify(electrumTxs));
+        if (electrumTxs.length !== 1)
+          throw new Error('BlueElectrum getTransactionsByAddress failure, got ' + JSON.stringify(electrumTxs));
       } else {
-        // skipping RN-specific test'
+        console.warn('skipping RN-specific test');
       }
 
-      if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
-        const aezeed = new HDAezeedWallet();
-        aezeed.setSecret(
-          'abstract rhythm weird food attract treat mosquito sight royal actor surround ride strike remove guilt catch filter summer mushroom protect poverty cruel chaos pattern',
-        );
-        assertStrictEqual(await aezeed.validateMnemonicAsync(), true, 'Aezeed failed');
-        assertStrictEqual(aezeed._getExternalAddressByIndex(0), 'bc1qdjj7lhj9lnjye7xq3dzv3r4z0cta294xy78txn', 'Aezeed failed');
-      } else {
-        // skipping RN-specific test
-      }
+      //
 
       let l = new LegacyWallet();
-      l.setSecret('L4ccWrPMmFDZw4kzAKFqJNxgHANjdy6b7YKNXMwB4xac4FLF3Tov');
-      assertStrictEqual(l.getAddress(), '14YZ6iymQtBVQJk6gKnLCk49UScJK7SH4M');
+      l.setSecret('Kxr9tQED9H44gCmp6HAdmemAzU3n84H3dGkuWTKvE23JgHMW8gct');
+      if (l.getAddress() !== '19AAjaTUbRjQCMuVczepkoPswiZRhjtg31') {
+        errorMessage += 'failed to generate legacy address from WIF; ';
+        isOk = false;
+      }
+
+      // utxos as received from blockcypher
       let utxos = [
         {
-          txid: 'cc44e933a094296d9fe424ad7306f16916253a3d154d52e4f1a757c18242cec4',
-          vout: 0,
+          tx_hash: '2f445cf016fa2772db7d473bff97515355b4e6148e1c980ce351d47cf54c517f',
+          block_height: 523186,
+          tx_input_n: -1,
+          tx_output_n: 1,
           value: 100000,
-          txhex:
-            '0200000000010161890cd52770c150da4d7d190920f43b9f88e7660c565a5a5ad141abb6de09de00000000000000008002a0860100000000001976a91426e01119d265aa980390c49eece923976c218f1588ac3e17000000000000160014c1af8c9dd85e0e55a532a952282604f820746fcd02473044022072b3f28808943c6aa588dd7a4e8f29fad7357a2814e05d6c5d767eb6b307b4e6022067bc6a8df2dbee43c87b8ce9ddd9fe678e00e0f7ae6690d5cb81eca6170c47e8012102e8fba5643e15ab70ec79528833a2c51338c1114c4eebc348a235b1a3e13ab07100000000',
+          ref_balance: 100000,
+          spent: false,
+          confirmations: 215,
+          confirmed: '2018-05-18T03:16:34Z',
+          double_spend: false,
+        },
+      ];
+      let toAddr = '1GX36PGBUrF8XahZEGQqHqnJGW2vCZteoB';
+      let amount = 0.0009;
+      let fee = 0.0001;
+      let txHex = l.createTx(utxos, amount, fee, toAddr);
+      if (
+        txHex !==
+        '01000000017f514cf57cd451e30c981c8e14e6b455535197ff3b477ddb7227fa16f05c442f010000006b483045022100b9a6545847bd30418c133437c7660a6676afafe6e7e837a37ef2ead931ebd586022056bc43cbf71855d0719f54151c8fcaaaa03367ecafdd7296dbe39f042e432f4f012103aea0dfd576151cb399347aa6732f8fdf027b9ea3ea2e65fb754803f776e0a509ffffffff01905f0100000000001976a914aa381cd428a4e91327fd4434aa0a08ff131f1a5a88ac00000000'
+      ) {
+        errorMessage += 'failed to create TX from legacy address; ';
+        isOk = false;
+      }
+
+      // now, several utxos
+      // utxos as received from blockcypher
+      utxos = [
+        {
+          amount: '0.002',
+          block_height: 523416,
+          confirmations: 6,
+          confirmed: '2018-05-19T15:46:43Z',
+          double_spend: false,
+          ref_balance: 300000,
+          spent: false,
+          tx_hash: 'dc3605040a03724bc584ed43bc22a559f5d32a1b0708ca05b20b9018fdd523ef',
+          tx_input_n: -1,
+          tx_output_n: 0,
+          txid: 'dc3605040a03724bc584ed43bc22a559f5d32a1b0708ca05b20b9018fdd523ef',
+          value: 200000,
+          vout: 0,
+        },
+        {
+          amount: '0.001',
+          block_height: 523186,
+          confirmations: 6,
+          confirmed: '2018-05-18T03:16:34Z',
+          double_spend: false,
+          ref_balance: 100000,
+          spent: false,
+          tx_hash: 'c473c104febfe6621804976d1082a1468c1198d0339e35f30a8ba1515d9eb017',
+          tx_input_n: -1,
+          tx_output_n: 0,
+          txid: 'c473c104febfe6621804976d1082a1468c1198d0339e35f30a8ba1515d9eb017',
+          value: 100000,
+          vout: 0,
         },
       ];
 
-      let txNew = l.createTransaction(utxos, [{ value: 90000, address: '1GX36PGBUrF8XahZEGQqHqnJGW2vCZteoB' }], 1, l.getAddress());
-      const txBitcoin = bitcoin.Transaction.fromHex(txNew.tx.toHex());
-      assertStrictEqual(
-        txNew.tx.toHex(),
-        '0200000001c4ce4282c157a7f1e4524d153d3a251669f10673ad24e49f6d2994a033e944cc000000006b48304502210091e58bd2021f2eeea8d39d7f7b053c9ccc52a747b60f1c3584ba33285e2d150602205b2d35a2536cbe157015e8c54a26f5fc350cc7c72b5ca80b9e548917993f652201210337c09b3cb889801638078fd4e6998218b28c92d338ea2602720a88847aedceb3ffffffff02905f0100000000001976a914aa381cd428a4e91327fd4434aa0a08ff131f1a5a88ac2e260000000000001976a91426e01119d265aa980390c49eece923976c218f1588ac00000000',
-      );
-      assertStrictEqual(txBitcoin.ins.length, 1);
-      assertStrictEqual(txBitcoin.outs.length, 2);
-      assertStrictEqual('1GX36PGBUrF8XahZEGQqHqnJGW2vCZteoB', bitcoin.address.fromOutputScript(txBitcoin.outs[0].script)); // to address
-      assertStrictEqual(l.getAddress(), bitcoin.address.fromOutputScript(txBitcoin.outs[1].script)); // change address
+      toAddr = '1GX36PGBUrF8XahZEGQqHqnJGW2vCZteoB';
+      amount = 0.0009;
+      fee = 0.0001;
+      try {
+        txHex = l.createTx(utxos, amount, fee, toAddr);
+      } catch (e) {
+        errorMessage += e.message + '; ';
+        isOk = false;
+      }
+      if (
+        txHex !==
+        '0100000002ef23d5fd18900bb205ca08071b2ad3f559a522bc43ed84c54b72030a040536dc000000006a47304402206b4f03e471d60dff19f4df1a8203ca97f6282658160034cea0f2b7d748c33d9802206058d23861dabdfb252c8df14249d1a2b00345dd90d32ab451cc3c6cfcb3b402012103aea0dfd576151cb399347aa6732f8fdf027b9ea3ea2e65fb754803f776e0a509ffffffff17b09e5d51a18b0af3359e33d098118c46a182106d97041862e6bffe04c173c4000000006b4830450221009785a61358a1ee7ab5885a98b111275226e0046a48b69980c4f53ecf99cdce0a02200503249e0b23d633ec1fbae5d41a0dcf9758dce3560066d1aee9ecfbfeefcfb7012103aea0dfd576151cb399347aa6732f8fdf027b9ea3ea2e65fb754803f776e0a509ffffffff02905f0100000000001976a914aa381cd428a4e91327fd4434aa0a08ff131f1a5a88ac400d0300000000001976a914597ce022baa887799951e0496c769d9cc0c759dc88ac00000000'
+      ) {
+        errorMessage += 'failed to create TX from legacy address; ';
+        isOk = false;
+      }
 
       //
 
       l = new SegwitP2SHWallet();
       l.setSecret('Kxr9tQED9H44gCmp6HAdmemAzU3n84H3dGkuWTKvE23JgHMW8gct');
       if (l.getAddress() !== '34AgLJhwXrvmkZS1o5TrcdeevMt22Nar53') {
-        throw new Error('failed to generate segwit P2SH address from WIF');
+        errorMessage += 'failed to generate segwit P2SH address from WIF; ';
+        isOk = false;
       }
 
       //
 
-      const wallet = new SegwitP2SHWallet();
-      wallet.setSecret('Ky1vhqYGCiCbPd8nmbUeGfwLdXB1h5aGwxHwpXrzYRfY5cTZPDo4');
-      assertStrictEqual(wallet.getAddress(), '3CKN8HTCews4rYJYsyub5hjAVm5g5VFdQJ');
-
-      utxos = [
+      // utxos as received from blockcypher
+      const utxo = [
         {
-          txid: 'a56b44080cb606c0bd90e77fcd4fb34c863e68e5562e75b4386e611390eb860c',
-          vout: 0,
-          value: 300000,
+          tx_hash: '0f5eea78fb19e72b55bd119252ff29fc16c503d0e956a9c1b5b2ab0e95e0c323',
+          block_height: 514991,
+          tx_input_n: -1,
+          tx_output_n: 2,
+          value: 110000,
+          ref_balance: 546,
+          spent: false,
+          confirmations: 9,
+          confirmed: '2018-03-24T18:13:36Z',
+          double_spend: false,
         },
       ];
 
-      txNew = wallet.createTransaction(utxos, [{ value: 90000, address: '1GX36PGBUrF8XahZEGQqHqnJGW2vCZteoB' }], 1, wallet.getAddress());
-      const tx = bitcoin.Transaction.fromHex(txNew.tx.toHex());
-      assertStrictEqual(
-        txNew.tx.toHex(),
-        '020000000001010c86eb9013616e38b4752e56e5683e864cb34fcd7fe790bdc006b60c08446ba50000000017160014139dc70d73097f9d775f8a3280ba3e3435515641ffffffff02905f0100000000001976a914aa381cd428a4e91327fd4434aa0a08ff131f1a5a88aca73303000000000017a914749118baa93fb4b88c28909c8bf0a8202a0484f4870248304502210080545d30e3d30dff272ab11c91fd6150170b603239b48c3d56a3fa66bf240085022003762404e1b45975adc89f61ec1569fa19d6d4a8d405e060897754c489ebeade012103a5de146762f84055db3202c1316cd9008f16047f4f408c1482fdb108217eda0800000000',
-      );
-      assertStrictEqual(tx.ins.length, 1);
-      assertStrictEqual(tx.outs.length, 2);
-      assertStrictEqual('1GX36PGBUrF8XahZEGQqHqnJGW2vCZteoB', bitcoin.address.fromOutputScript(tx.outs[0].script)); // to address
-      assertStrictEqual(bitcoin.address.fromOutputScript(tx.outs[1].script), wallet.getAddress()); // change address
+      const tx = l.createTx(utxo, 0.001, 0.0001, '1QHf8Gp3wfmFiSdEX4FtrssCGR68diN1cj');
+      const txDecoded = bitcoin.Transaction.fromHex(tx);
+      const txid = txDecoded.getId();
+
+      if (txid !== '110f51d28d585e922adbf701cba802e549b8fe3a53fa5d62426ab42549c9b6de') {
+        errorMessage += 'created txid doesnt match; ';
+        isOk = false;
+      }
+      if (
+        tx !==
+        '0100000000010123c3e0950eabb2b5c1a956e9d003c516fc29ff529211bd552be719fb78ea5e0f0200000017160014597ce022baa887799951e0496c769d9cc0c759dc0000000001a0860100000000001976a914ff715fb722cb10646d80709aeac7f2f4ee00278f88ac02473044022075670317a0e5b5d4eef154b03db97396a64cbc6ef3b576d98367e1a83c1c488002206d6df1e8085fd711d6ea264de3803340f80fa2c6e30683879d9ad40f3228c56c012103aea0dfd576151cb399347aa6732f8fdf027b9ea3ea2e65fb754803f776e0a50900000000'
+      ) {
+        errorMessage += 'created tx hex doesnt match; ';
+        isOk = false;
+      }
+
+      let feeSatoshi = new BigNumber(0.0001);
+      feeSatoshi = feeSatoshi.multipliedBy(100000000);
+      let satoshiPerByte = feeSatoshi.dividedBy(Math.round(tx.length / 2));
+      satoshiPerByte = Math.round(satoshiPerByte.toString(10));
+
+      if (satoshiPerByte !== 46) {
+        errorMessage += 'created tx satoshiPerByte doesnt match; ';
+        isOk = false;
+      }
 
       //
 
-      const data2encrypt = 'really long data string';
-      const crypted = encryption.encrypt(data2encrypt, 'password');
+      const crypted = encryption.encrypt('data', 'password');
       const decrypted = encryption.decrypt(crypted, 'password');
 
-      if (decrypted !== data2encrypt) {
-        throw new Error('encryption lib is not ok');
+      if (decrypted !== 'data' && crypted && decrypted) {
+        errorMessage += 'encryption lib is not ok; ';
+        isOk = false;
       }
 
       //
@@ -153,8 +218,8 @@ export default class Selftest extends Component {
       const bip39 = require('bip39');
       const mnemonic =
         'honey risk juice trip orient galaxy win situate shoot anchor bounce remind horse traffic exotic since escape mimic ramp skin judge owner topple erode';
-      const seed = bip39.mnemonicToSeedSync(mnemonic);
-      const root = bip32.fromSeed(seed);
+      const seed = bip39.mnemonicToSeed(mnemonic);
+      const root = bitcoin.bip32.fromSeed(seed);
 
       const path = "m/49'/0'/0'/0/0";
       const child = root.derivePath(path);
@@ -167,7 +232,8 @@ export default class Selftest extends Component {
       }).address;
 
       if (address !== '3GcKN7q7gZuZ8eHygAhHrvPa5zZbG5Q1rK') {
-        throw new Error('bip49 is not ok');
+        errorMessage += 'bip49 is not ok; ';
+        isOk = false;
       }
 
       //
@@ -194,48 +260,25 @@ export default class Selftest extends Component {
 
         //
 
+        const hd3 = new HDSegwitP2SHWallet();
+        hd3._xpub =
+          'ypub6Wb82D7F38b48uzRVyTwydMCPcos4njzygPRCJ4x1enm6EA5YUthtWgJUPYiFTs7Sk53q8rJ9d1SJ2fBNqsyhjUTDR7gyF1SXbBnaa9xcQj';
+        await hd3.fetchBalance();
+        if (hd3.getBalance() !== 26000) throw new Error('Could not fetch HD balance');
+        await hd3.fetchTransactions();
+        if (hd3.transactions.length !== 1) throw new Error('Could not fetch HD transactions');
+
+        //
+
         const hd4 = new HDSegwitBech32Wallet();
-        hd4._xpub = 'zpub6r7jhKKm7BAVx3b3nSnuadY1WnshZYkhK8gKFoRLwK9rF3Mzv28BrGcCGA3ugGtawi1WLb2vyjQAX9ZTDGU5gNk2bLdTc3iEXr6tzR1ipNP';
+        hd4._xpub =
+          'zpub6r7jhKKm7BAVx3b3nSnuadY1WnshZYkhK8gKFoRLwK9rF3Mzv28BrGcCGA3ugGtawi1WLb2vyjQAX9ZTDGU5gNk2bLdTc3iEXr6tzR1ipNP';
         await hd4.fetchBalance();
         if (hd4.getBalance() !== 200000) throw new Error('Could not fetch HD Bech32 balance');
         await hd4.fetchTransactions();
         if (hd4.getTransactions().length !== 4) throw new Error('Could not fetch HD Bech32 transactions');
       } else {
-        // skipping RN-specific test
-      }
-
-      // BlueCrypto test
-      if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
-        const hex = await BlueCrypto.scrypt('717765727479', '4749345a22b23cf3', 64, 8, 8, 32); // using non-default parameters to speed it up (not-bip38 compliant)
-        if (hex.toUpperCase() !== 'F36AB2DC12377C788D61E6770126D8A01028C8F6D8FE01871CE0489A1F696A90')
-          throw new Error('react-native-blue-crypto is not ok');
-      }
-
-      // bip38 test
-      if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
-        let callbackWasCalled = false;
-        const decryptedKey = await bip38.decryptAsync(
-          '6PnU5voARjBBykwSddwCdcn6Eu9EcsK24Gs5zWxbJbPZYW7eiYQP8XgKbN',
-          'qwerty',
-          () => (callbackWasCalled = true),
-        );
-        assertStrictEqual(
-          wif.encode(0x80, decryptedKey.privateKey, decryptedKey.compressed),
-          'KxqRtpd9vFju297ACPKHrGkgXuberTveZPXbRDiQ3MXZycSQYtjc',
-          'bip38 failed',
-        );
-        // bip38 with BlueCrypto doesn't support progress callback
-        assertStrictEqual(callbackWasCalled, false, "bip38 doesn't use BlueCrypto");
-      }
-
-      // slip39 test
-      if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
-        const w = new SLIP39LegacyP2PKHWallet();
-        w.setSecret(
-          'shadow pistol academic always adequate wildlife fancy gross oasis cylinder mustang wrist rescue view short owner flip making coding armed\n' +
-            'shadow pistol academic acid actress prayer class unknown daughter sweater depict flip twice unkind craft early superior advocate guest smoking',
-        );
-        assertStrictEqual(w._getExternalAddressByIndex(0), '18pvMjy7AJbCDtv4TLYbGPbR7SzGzjqUpj', 'SLIP39 failed');
+        console.warn('skipping RN-specific test');
       }
 
       //
@@ -257,7 +300,7 @@ export default class Selftest extends Component {
     }
 
     return (
-      <SafeBlueArea>
+      <SafeBlueArea forceInset={{ horizontal: 'always' }} style={{ flex: 1 }}>
         <BlueCard>
           <ScrollView>
             <BlueSpacing20 />
@@ -265,19 +308,15 @@ export default class Selftest extends Component {
             {(() => {
               if (this.state.isOk) {
                 return (
-                  <View style={styles.center}>
-                    <BlueText testID="SelfTestOk" h4>
-                      OK
-                    </BlueText>
-                    <BlueSpacing20 />
-                    <BlueText>{loc.settings.about_selftest_ok}</BlueText>
+                  <View style={{ alignItems: 'center' }}>
+                    <BlueText h4>OK</BlueText>
                   </View>
                 );
               } else {
                 return (
-                  <View style={styles.center}>
+                  <View style={{ alignItems: 'center' }}>
                     <BlueText h4 numberOfLines={0}>
-                      {this.state.errorMessage}
+                      error: {this.state.errorMessage}
                     </BlueText>
                   </View>
                 );
@@ -290,20 +329,9 @@ export default class Selftest extends Component {
   }
 }
 
-function assertStrictEqual(actual, expected, message) {
-  if (expected !== actual) {
-    if (message) throw new Error(message);
-    throw new Error('Assertion failed that ' + JSON.stringify(expected) + ' equals ' + JSON.stringify(actual));
-  }
-}
-
 Selftest.propTypes = {
   navigation: PropTypes.shape({
     navigate: PropTypes.func,
     goBack: PropTypes.func,
   }),
 };
-
-Selftest.navigationOptions = navigationStyle({
-  title: loc.settings.selfTest,
-});

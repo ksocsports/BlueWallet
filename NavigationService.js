@@ -1,12 +1,21 @@
-/* eslint-disable no-unused-expressions */
-import * as React from 'react';
+import { NavigationActions } from 'react-navigation';
 
-export const navigationRef = React.createRef();
+let _navigator;
 
-export function navigate(name, params) {
-  navigationRef.current?.navigate(name, params);
+function setTopLevelNavigator(navigatorRef) {
+  _navigator = navigatorRef;
 }
 
-export function dispatch(params) {
-  navigationRef.current?.dispatch(params);
+function navigate(routeName, params) {
+  _navigator.dispatch(
+    NavigationActions.navigate({
+      routeName,
+      params,
+    }),
+  );
 }
+
+export default {
+  navigate,
+  setTopLevelNavigator,
+};
